@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tugas Rutin 10 (v2) — Jurnal Ngoding</title>
+<style>
+:root{--bg:#f2faf8;--fg:#0f2a27;--mu:#5b7a76;--cd:#fff;--bd:#cfe6e1;--ac:#0d9488;--wr:#f59e0b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#081412;--fg:#e3f4f1;--mu:#8fb3ad;--cd:#102421;--bd:#1f3d38}}
+:root[data-theme="dark"]{--bg:#081412;--fg:#e3f4f1;--mu:#8fb3ad;--cd:#102421;--bd:#1f3d38}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0 auto;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif;padding:16px;max-width:760px}
+h1{font-size:22px;margin:0}h2{font-size:17px;margin:20px 0 8px}
+.sub{color:var(--mu);font-size:13px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+button{font:inherit;font-size:14px;padding:8px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--cd);color:var(--fg)}
+button.on,.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.dng{color:#dc2626}
+.route{font:12px monospace;background:var(--cd);border:1px dashed var(--bd);border-radius:8px;padding:6px 10px;margin:8px 0;overflow-x:auto;white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.card{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:14px}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;background:var(--ac);color:#fff}
+input,textarea,select{font:inherit;width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--fg);margin:4px 0}
+.err{color:#dc2626;font-size:13px;display:block}
+.alert{padding:10px 12px;border-radius:10px;margin:8px 0;font-size:14px;border:1px solid}
+.success{background:#16a34a22;border-color:#16a34a}.warning{background:#f59e0b22;border-color:var(--wr)}.danger{background:#dc262622;border-color:#dc2626}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border-bottom:1px solid var(--bd);padding:6px;text-align:left;white-space:nowrap}
+pre{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:10px;overflow-x:auto;font-size:12.5px}
+details{margin:6px 0}summary{font-weight:600;padding:8px 0}
+</style></head><body>
+<h1>📓 Jurnal Ngoding</h1>
+<div class="sub">Tugas Rutin 10 (v2) — Blog CRUD Laravel. Sudah termasuk <b>bonus</b>: pencarian & soft delete. Data di memori (hilang saat refresh).</div>
+<div class="tabs" id="tabs"></div>
+<div class="route" id="route"></div>
+<div id="flash"></div>
+<div id="app"></div>
+<script>
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cats=['Laravel','PHP','Database','Frontend'];
+let nid=1;
+const mk=(t,c,b)=>({id:nid++,title:t,cat:c,body:b,deleted:false});
+let posts=[mk('Kenalan dengan MVC','Laravel','Model, View, Controller dipisah supaya kode rapi dan mudah dirawat.'),mk('Route Model Binding','Laravel','Type-hint model di parameter, Laravel mencari datanya otomatis.'),mk('Prepared Statement di PDO','PHP','Gunakan placeholder agar aman dari SQL Injection.'),mk('Normalisasi 3NF','Database','Hilangkan redundansi dengan memecah tabel.'),mk('Flexbox vs Grid','Frontend','Flexbox satu dimensi, Grid dua dimensi.'),mk('Blade Components','Laravel','Komponen dengan props dan slot menggantikan include.'),mk('Eager Loading','Database','Gunakan with() untuk menghindari masalah N+1.'),mk('Validasi Form Request','Laravel','Pindahkan aturan validasi ke kelas terpisah.')];
+let tab='blog',view='list',cur=null,errs={},old={},flash=null,q='',cat='',page=1;const PER=4;
+const T={blog:'📰 Blog',trash:'🗑 Sampah',routes:'🛣 route:list',code:'💻 Kode'};
+const R=[['GET|HEAD','posts','posts.index','PostController@index'],['GET|HEAD','posts/create','posts.create','PostController@create'],['POST','posts','posts.store','PostController@store'],['GET|HEAD','posts/{post}','posts.show','PostController@show'],['GET|HEAD','posts/{post}/edit','posts.edit','PostController@edit'],['PUT|PATCH','posts/{post}','posts.update','PostController@update'],['DELETE','posts/{post}','posts.destroy','PostController@destroy'],['PATCH','posts/{id}/restore','posts.restore','PostController@restore']];
+const alertC=(t,m)=>`<div class="alert ${t}">${m}</div>`;
+const route=r=>document.getElementById('route').textContent=r;
+function render(){
+ document.getElementById('tabs').innerHTML=Object.entries(T).map(([k,l])=>`<button class="${k===tab?'on':''}" onclick="tab='${k}';view='list';errs={};old={};render()">${l}</button>`).join('');
+ document.getElementById('flash').innerHTML=flash?alertC(flash[0],esc(flash[1])):'';flash=null;
+ const a=document.getElementById('app');
+ if(tab==='routes'){route('php artisan route:list --name=posts');a.innerHTML=`<div class="wrap"><table><tr><th>Method</th><th>URI</th><th>Name</th><th>Action</th></tr>${R.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table></div><div class="sub">Route::resource('posts') + route restore tambahan untuk soft delete.</div>`;return}
+ if(tab==='code'){route('Kode Laravel');a.innerHTML=codeHtml();return}
+ if(tab==='trash'){route('GET /posts/trash → Post::onlyTrashed()');const t=posts.filter(p=>p.deleted);a.innerHTML=t.length?`<div class="grid">${t.map(p=>`<div class="card"><b>${esc(p.title)}</b><div class="sub">deleted_at terisi</div><div class="row"><button class="pri" onclick="restore(${p.id})">↩ Restore</button><button class="dng" onclick="force(${p.id})">Hapus permanen</button></div></div>`).join('')}</div>`:'<div class="card">Sampah kosong.</div>';return}
+ if(view==='list'){
+  route(`GET /posts?search=${q}${cat?'&cat='+cat:''}&page=${page} → posts.index`);
+  const f=posts.filter(p=>!p.deleted&&p.title.toLowerCase().includes(q.toLowerCase())&&(!cat||p.cat===cat));
+  const pages=Math.max(1,Math.ceil(f.length/PER));if(page>pages)page=pages;
+  a.innerHTML=`<div class="row"><button class="pri" onclick="view='create';cur=null;errs={};old={};render()">+ Tulis Post</button></div>
+  <input id="q" placeholder="🔍 cari judul…" value="${esc(q)}" oninput="q=this.value;page=1;render();const e=document.getElementById('q');e.focus();e.setSelectionRange(99,99)">
+  <select onchange="cat=this.value;page=1;render()"><option value="">Semua kategori</option>${cats.map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select>
+  <div class="grid" style="margin-top:10px">${f.slice((page-1)*PER,page*PER).map(p=>`<div class="card"><span class="badge">${p.cat}</span><h3 style="margin:8px 0 4px;font-size:16px">${esc(p.title)}</h3><p class="sub">${esc(p.body.slice(0,70))}…</p><div class="row"><button onclick="open_(${p.id},'show')">Lihat</button><button onclick="open_(${p.id},'edit')">Edit</button><button class="dng" onclick="del(${p.id})">🗑</button></div></div>`).join('')||'<div class="card">Tidak ada post.</div>'}</div>
+  <div class="row" style="justify-content:center"><button ${page<=1?'disabled':''} onclick="page--;render()">‹</button><span class="sub">Hal ${page}/${pages} · ${f.length} post</span><button ${page>=pages?'disabled':''} onclick="page++;render()">›</button></div>`;
+ }else if(view==='show'){route(`GET /posts/${cur.id} → posts.show (model binding)`);a.innerHTML=`<div class="card"><span class="badge">${cur.cat}</span><h2>${esc(cur.title)}</h2><p>${esc(cur.body)}</p><button onclick="view='list';render()">‹ Kembali</button></div>`}
+ else{const e=view==='edit';route(e?`GET /posts/${cur.id}/edit → posts.edit`:'GET /posts/create → posts.create');
+  const t=old.t??(e?cur.title:''),b=old.b??(e?cur.body:''),c=old.c??(e?cur.cat:cats[0]);
+  a.innerHTML=`<div class="card">${Object.keys(errs).length?alertC('danger','Periksa kembali form!'):''}<label>Judul</label><input id="t" value="${esc(t)}">${errs.t?`<span class="err">${errs.t}</span>`:''}<label>Kategori</label><select id="c">${cats.map(x=>`<option ${x===c?'selected':''}>${x}</option>`).join('')}</select><label>Isi</label><textarea id="b" rows="5">${esc(b)}</textarea>${errs.b?`<span class="err">${errs.b}</span>`:''}<div class="row"><button class="pri" onclick="save()">Simpan</button><button onclick="view='list';errs={};old={};render()">Batal</button></div><div class="sub">@csrf ${e?"@method('PUT')":''}</div></div>`}
+}
+function open_(id,v){cur=posts.find(p=>p.id===id);view=v;errs={};old={};render()}
+function del(id){posts.find(p=>p.id===id).deleted=true;flash=['warning','Post dipindah ke sampah (soft delete).'];render()}
+function restore(id){posts.find(p=>p.id===id).deleted=false;flash=['success','Post dikembalikan!'];render()}
+function force(id){if(!confirm('Hapus permanen?'))return;posts=posts.filter(p=>p.id!==id);flash=['danger','Post dihapus permanen.'];render()}
+function save(){const t=document.getElementById('t').value.trim(),b=document.getElementById('b').value.trim(),c=document.getElementById('c').value;errs={};old={t,b,c};
+ if(!t)errs.t='Judul wajib diisi.';else if(t.length>200)errs.t='Judul maksimal 200 karakter.';
+ if(b.length<10)errs.b='Isi minimal 10 karakter.';
+ if(Object.keys(errs).length){render();return}
+ if(view==='edit'){Object.assign(cur,{title:t,body:b,cat:c});flash=['success','Post diperbarui!'];view='show'}else{posts.push(mk(t,c,b));flash=['success','Post dibuat!'];view='list';page=1}
+ old={};render()}
+function codeHtml(){return [['Migration + SoftDeletes',`$t->id();
+$t->string('title', 200);
+$t->string('category');
+$t->text('body');
+$t->timestamps();
+$t->softDeletes();`],['Model Post',`class Post extends Model {
+    use SoftDeletes;
+    protected $fillable = ['title', 'category', 'body'];
+    public function scopeSearch($q, $s) {
+        return $q->when($s, fn($q) => $q->where('title', 'like', "%$s%"));
+    }
+}`],['PostController (inti)',`public function index(Request $r) {
+    $posts = Post::search($r->search)
+        ->when($r->cat, fn($q) => $q->where('category', $r->cat))
+        ->latest()->paginate(4)->withQueryString();
+    return view('posts.index', compact('posts'));
+}
+public function store(StorePostRequest $r) {
+    Post::create($r->validated());
+    return to_route('posts.index')->with('success', 'Post dibuat!');
+}
+public function destroy(Post $post) {
+    $post->delete(); // soft delete
+    return back()->with('warning', 'Dipindah ke sampah.');
+}
+public function restore($id) {
+    Post::onlyTrashed()->findOrFail($id)->restore();
+    return back()->with('success', 'Post dikembalikan!');
+}`],['Blade: layout + component',`@extends('layouts.app')
+@section('content')
+@if (session('success'))
+  <x-alert type="success">{{ session('success') }}</x-alert>
+@endif
+@foreach ($posts as $p)
+  <x-card :post="$p" />
+@endforeach
+{{ $posts->links() }}
+@endsection
+
+{{-- form hapus --}}
+<form method="POST" action="{{ route('posts.destroy', $p) }}">
+  @csrf @method('DELETE') <button>Hapus</button>
+</form>`]].map(([t,c])=>`<details><summary>${t}</summary><pre>${esc(c)}</pre></details>`).join('')}
+render();
+</script></body></html>
